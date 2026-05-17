@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PSP Auto-Fill</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f4; color: #1a1a1a; min-height: 100vh; display: flex; justify-content: center; padding: 2rem 1rem; }
+  .app { width: 100%; max-width: 640px; }
+  h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: #666; margin-bottom: 2rem; line-height: 1.5; }
+  .card { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1.25rem; margin-bottom: 12px; }
+  .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .num { width: 26px; height: 26px; border-radius: 50%; background: #f0f0f0; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #666; flex-shrink: 0; transition: all 0.2s; }
+  .num.done { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+  .card-title { font-size: 14px; font-weight: 600; }
+  label { font-size: 13px; color: #555; display: block; margin-bottom: 5px; }
+  input[type=text], input[type=password] { width: 100%; padding: 9px 12px; font-size: 13px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; font-family: 'SF Mono', 'Courier New', monospace; outline: none; transition: border-color 0.15s; }
+  input[type=text]:focus, input[type=password]:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+  .key-row { display: flex; gap: 8px; }
+  .key-row input { flex: 1; }
+  .show-btn { padding: 9px 14px; font-size: 12px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #555; cursor: pointer; white-space: nowrap; }
+  .show-btn:hover { background: #f5f5f5; }
+  .notice { font-size: 12px; color: #999; margin-top: 7px; line-height: 1.5; }
+  .drop { border: 1.5px dashed #d1d5db; border-radius: 8px; padding: 1.25rem; text-align: center; cursor: pointer; transition: all 0.15s; }
+  .drop:hover { background: #fafafa; border-color: #9ca3af; }
+  .drop.done { border-style: solid; border-color: #6ee7b7; background: #f0fdf4; }
+  .drop-icon { font-size: 28px; margin-bottom: 6px; }
+  .drop p { font-size: 13px; color: #666; }
+  .drop.done p { color: #065f46; font-weight: 500; }
+  input[type=file] { display: none; }
+  textarea { width: 100%; min-height: 130px; resize: vertical; font-size: 13px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; border: 1px solid #ddd; border-radius: 8px; padding: 10px 12px; background: #fff; color: #1a1a1a; line-height: 1.6; outline: none; transition: border-color 0.15s; }
+  textarea:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+  .divider { font-size: 12px; color: #bbb; text-align: center; margin: 10px 0; }
+  .g-btn { width: 100%; padding: 10px 16px; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 8px; border: 1px solid #ddd; background: #fff; color: #1a1a1a; display: flex; align-items: center; gap: 10px; transition: background 0.15s; }
+  .g-btn:hover { background: #f9fafb; }
+  .g-btn.connected { border-color: #6ee7b7; background: #f0fdf4; color: #065f46; }
+  .g-icon { width: 18px; height: 18px; flex-shrink: 0; }
+  .run-btn { width: 100%; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer; border-radius: 10px; border: none; background: #6366f1; color: #fff; transition: all 0.15s; margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .run-btn:hover:not(:disabled) { background: #4f46e5; }
+  .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .log-box { background: #1e1e1e; border-radius: 8px; padding: 12px; font-size: 12px; font-family: 'SF Mono', 'Courier New', monospace; line-height: 1.8; max-height: 220px; overflow-y: auto; margin-top: 14px; }
+  .log-line { display: flex; gap: 10px; }
+  .log-line .ts { color: #666; flex-shrink: 0; }
+  .log-line .msg { color: #ccc; }
+  .log-line.ok .msg { color: #6ee7b7; }
+  .log-line.err .msg { color: #fca5a5; }
+  .result { background: #f0fdf4; border: 1px solid #6ee7b7; border-radius: 10px; padding: 1.25rem; margin-top: 14px; }
+  .result h3 { font-size: 14px; font-weight: 600; color: #065f46; margin-bottom: 8px; }
+  .result a { font-size: 13px; color: #4f46e5; word-break: break-all; text-decoration: underline; }
+  .summary { background: #f9fafb; border-radius: 8px; padding: 10px 12px; margin-top: 10px; font-size: 12px; color: #555; line-height: 1.8; white-space: pre-wrap; border: 1px solid #e5e5e5; }
+  .setup-box { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 1rem; margin-top: 10px; font-size: 13px; color: #78350f; line-height: 1.7; }
+  .setup-box strong { color: #451a03; }
+  .setup-box a { color: #4f46e5; }
+  .setup-box code { background: #fef3c7; padding: 1px 5px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+  .file-list { list-style: none; margin-bottom: 10px; display: flex; flex-direction: column; gap: 5px; }
+  .file-item { display: flex; align-items: center; justify-content: space-between; background: #f9fafb; border: 1px solid #e5e5e5; border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #444; }
+  .file-item span { display: flex; align-items: center; gap: 6px; }
+  .file-remove { background: none; border: none; cursor: pointer; color: #aaa; font-size: 14px; padding: 0 2px; line-height: 1; }
+  .file-remove:hover { color: #e53e3e; }
+  .add-more { font-size: 12px; color: #6366f1; cursor: pointer; text-decoration: underline; background: none; border: none; padding: 0; margin-top: 4px; display: block; }
+  .add-more:hover { color: #4f46e5; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <h1>PSP Auto-Fill</h1>
+  <p class="subtitle">Connect your Google account, upload your call transcript(s), and let Claude build the PSP — straight into a new Google Sheet in your Drive.</p>
+
+  <!-- STEP 1: GOOGLE -->
+  <div class="card">
+    <div class="card-header">
+      <div class="num" id="num2">1</div>
+      <span class="card-title">Google account</span>
+    </div>
+    <button class="g-btn" id="g-btn" onclick="connectGoogle()">
+      <svg class="g-icon" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.23-5.86c0-.57-.05-.96-.1-1.19z"/>
+        <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.01c-.72.48-1.63.77-2.7.77-2.08 0-3.84-1.4-4.47-3.29H1.83v2.07A8 8 0 008.98 17z"/>
+        <path fill="#FBBC05" d="M4.51 10.53A4.8 4.8 0 014.26 9c0-.53.09-1.04.25-1.53V5.4H1.83A8 8 0 001 9c0 1.3.31 2.52.83 3.6l2.68-2.07z"/>
+        <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 008.98 1a8 8 0 00-7.15 4.4l2.68 2.07c.63-1.89 2.39-3.29 4.47-3.29z"/>
+      </svg>
+      <span id="g-btn-text">Connect Google account</span>
+    </button>
+    <div id="setup-info" style="display:none;" class="setup-box">
+      <strong>One-time setup needed — add your Google OAuth Client ID:</strong><br><br>
+      1. Open this HTML file in a text editor (Notepad, TextEdit, VS Code)<br>
+      2. Find the line near the top of the &lt;script&gt; that says:<br>
+      <code>const CLIENT_ID = '';</code><br>
+      3. Paste your Client ID between the quotes<br>
+      4. Save and refresh this page<br><br>
+      <strong>To get a Client ID:</strong><br>
+      1. Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console → Credentials</a><br>
+      2. Create an OAuth 2.0 Client ID → Web application<br>
+      3. Add <code>null</code> as an authorised origin (for local file use, see note below)<br>
+      4. Enable Google Sheets API and Google Drive API in your project<br><br>
+      <strong>Or paste a Google access token directly:</strong><br>
+      <input class="manual-token" type="password" placeholder="Paste access token here…" oninput="setManualToken(this.value)" />
+    </div>
+  </div>
+
+  <!-- STEP 2: TRANSCRIPT -->
+  <div class="card">
+    <div class="card-header">
+      <div class="num" id="num4">2</div>
+      <span class="card-title">Call transcripts</span>
+    </div>
+    <div class="drop" id="dz-tx" onclick="document.getElementById('inp-tx').click()" style="margin-bottom:10px;">
+      <div class="drop-icon">📄</div>
+      <p>Click to upload one or more .txt / .md files</p>
+      <p style="font-size:11px;color:#aaa;margin-top:4px;">You can select multiple files at once</p>
+    </div>
+    <input type="file" id="inp-tx" accept=".txt,.md,.text" multiple onchange="handleTx(this)" />
+    <div id="file-list" style="display:none; margin-bottom:10px;"></div>
+    <p class="divider">— or paste below —</p>
+    <textarea id="tx-paste" placeholder="Paste transcript text here… (multiple transcripts will be combined)" oninput="onTxPaste()"></textarea>
+  </div>
+
+  <button class="run-btn" id="run-btn" onclick="runPipeline()" disabled>
+    ✦ &nbsp;Analyse &amp; create Google Sheet
+  </button>
+
+  <div id="output" style="display:none;">
+    <div class="log-box" id="log"></div>
+    <div class="result" id="result-card" style="display:none;">
+      <h3>✓ Google Sheet created</h3>
+      <a id="sheet-link" href="#" target="_blank"></a>
+      <div class="summary" id="summary-box" style="display:none;"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+
+// ─────────────────────────────────────────────
+// PASTE YOUR GOOGLE OAUTH CLIENT ID HERE:
+const CLIENT_ID = '';
+// ─────────────────────────────────────────────
+
+// Master PSP template Google Sheet ID (read-only reference):
+const MASTER_SHEET_ID = '1XFX_OpkaSe08z-cB-AgVySwkpICMcIfBg6vTWv2SGLI';
+
+let gToken = null;
+let txText = '';
+
+function markDone(id) {
+  const el = document.getElementById(id);
+  el.classList.add('done');
+  el.textContent = '✓';
+}
+
+function checkReady() {
+  const pasted = document.getElementById('tx-paste').value.trim();
+  const hasTx = txFiles.length > 0 || pasted.length > 0;
+  document.getElementById('run-btn').disabled = !(gToken && hasTx);
+}
+
+function connectGoogle() {
+  if (!CLIENT_ID) {
+    document.getElementById('setup-info').style.display = '';
+    return;
+  }
+  const scopes = encodeURIComponent('https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive');
+  const redirect = encodeURIComponent(window.location.href.split('?')[0]);
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${redirect}&response_type=token&scope=${scopes}&prompt=select_account`;
+  const popup = window.open(url, 'google-auth', 'width=500,height=620,left=200,top=100');
+  const timer = setInterval(() => {
+    try {
+      if (popup.closed) { clearInterval(timer); return; }
+      const hash = popup.location.hash;
+      if (hash && hash.includes('access_token')) {
+        const params = new URLSearchParams(hash.substring(1));
+        gToken = params.get('access_token');
+        clearInterval(timer);
+        popup.close();
+        setGoogleConnected();
+      }
+    } catch(e) {}
+  }, 300);
+}
+
+function setGoogleConnected() {
+  const btn = document.getElementById('g-btn');
+  btn.classList.add('connected');
+  document.getElementById('g-btn-text').textContent = '✓  Google account connected';
+  markDone('num2');
+  checkReady();
+}
+
+function setManualToken(val) {
+  if (val.trim().length > 20) {
+    gToken = val.trim();
+    setGoogleConnected();
+  }
+}
+
+let txFiles = []; // array of {name, text}
+
+function handleTx(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  let loaded = 0;
+  files.forEach(file => {
+    const r = new FileReader();
+    r.onload = e => {
+      // avoid duplicates by name
+      if (!txFiles.find(f => f.name === file.name)) {
+        txFiles.push({ name: file.name, text: e.target.result });
+      }
+      loaded++;
+      if (loaded === files.length) renderFileList();
+    };
+    r.readAsText(file);
+  });
+  input.value = ''; // reset so same file can be re-added if needed
+}
+
+function renderFileList() {
+  const container = document.getElementById('file-list');
+  if (!txFiles.length) { container.style.display = 'none'; container.innerHTML = ''; return; }
+  container.style.display = '';
+  container.innerHTML = `
+    <ul class="file-list">
+      ${txFiles.map((f, i) => `
+        <li class="file-item">
+          <span>📄 ${escHtml(f.name)}</span>
+          <button class="file-remove" onclick="removeFile(${i})" title="Remove">✕</button>
+        </li>`).join('')}
+    </ul>
+    <button class="add-more" onclick="document.getElementById('inp-tx').click()">+ Add more files</button>
+  `;
+  const dz = document.getElementById('dz-tx');
+  dz.classList.add('done');
+  dz.querySelector('.drop-icon').textContent = '✅';
+  dz.querySelector('p').textContent = txFiles.length === 1 ? '1 transcript loaded' : `${txFiles.length} transcripts loaded`;
+  dz.querySelectorAll('p')[1] && (dz.querySelectorAll('p')[1].textContent = '');
+  markDone('num4');
+  checkReady();
+}
+
+function removeFile(index) {
+  txFiles.splice(index, 1);
+  if (!txFiles.length) {
+    const dz = document.getElementById('dz-tx');
+    dz.classList.remove('done');
+    dz.querySelector('.drop-icon').textContent = '📄';
+    dz.querySelector('p').textContent = 'Click to upload one or more .txt / .md files';
+    document.getElementById('num4').classList.remove('done');
+    document.getElementById('num4').textContent = '3';
+  }
+  renderFileList();
+  checkReady();
+}
+
+function getCombinedTranscript() {
+  // combine uploaded files + pasted text
+  const parts = [];
+  txFiles.forEach((f, i) => {
+    parts.push(`=== TRANSCRIPT ${i + 1}: ${f.name} ===\n\n${f.text}`);
+  });
+  const pasted = document.getElementById('tx-paste').value.trim();
+  if (pasted) parts.push(`=== PASTED TRANSCRIPT ===\n\n${pasted}`);
+  return parts.join('\n\n---\n\n');
+}
+
+function onTxPaste() {
+  const pasted = document.getElementById('tx-paste').value.trim();
+  if (pasted) markDone('num4');
+  checkReady();
+}
+
+function log(msg, type='') {
+  document.getElementById('output').style.display = '';
+  const el = document.getElementById('log');
+  const ts = new Date().toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  const d = document.createElement('div');
+  d.className = 'log-line ' + type;
+  d.innerHTML = `<span class="ts">${ts}</span><span class="msg">${escHtml(msg)}</span>`;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function runPipeline() {
+  const combinedTx = getCombinedTranscript();
+  if (!gToken || !combinedTx) return;
+
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.textContent = 'Processing…';
+  document.getElementById('result-card').style.display = 'none';
+  document.getElementById('log').innerHTML = '';
+
+  log(`Sending ${txFiles.length > 1 ? txFiles.length + ' transcripts' : 'transcript'} to Claude for extraction…`);
+
+  const systemPrompt = `You are an expert workforce management consultant at Deputy. Read the call transcript(s) provided — there may be one or several, each separated by a divider. Synthesise all of them together and extract structured data for a single Pre-Sales Pack (PSP).
+
+Return ONLY valid JSON — no markdown, no backticks, no explanation. Only populate fields explicitly stated in the transcripts. Never fabricate or infer data not clearly present.
+
+{
+  "company_name": "",
+  "overview": {
+    "industry": "", "website": "", "brief_outline": "", "rtes_at_golive": "",
+    "rte_12months": "", "regions": "", "physical_sites": "", "deputy_locations": "",
+    "desired_golive": "", "key_drivers": "", "outcomes_required": "",
+    "account_exec": "", "competition": "", "psp_status": "Draft", "source_of_lead": ""
+  },
+  "customer_team": [
+    {"role_type": "Project Champion", "name": "", "job_title": "", "email": "", "responsibilities": ""}
+  ],
+  "tech_stack": {
+    "current_wfm": "", "hr_platform": "", "payroll_platform": "",
+    "pos_platform": "", "ats_platform": "", "other_platforms": "",
+    "data_in": "", "data_out": ""
+  },
+  "scope": {
+    "regions": "", "territory": "", "sites": "", "departments": "", "teams_roles": "",
+    "consistent_depts": "", "fixed_variable": "", "cross_charging": "",
+    "payroll_format": "", "pay_cycles": "", "payroll_managed_by": "",
+    "shift_patterns": "", "agreed_hours": "", "salary_hourly_variations": "",
+    "multiple_roles": "", "single_multiple_contracts": "", "employee_data_import": "",
+    "clocking_preferences": "", "ta_rules": "", "rota_example_provided": "",
+    "open_shifts": "", "leave_year": "", "deputy_for_leave": "", "leave_accrual": "",
+    "toil": "", "salary_hourly_pay": "", "rates_fixed_or_per_employee": "",
+    "time_ot": "", "area_ot": "", "allowances": "", "rates_on_deputy": "",
+    "reporting_pre_built": "", "report_visibility": "",
+    "integrations": "", "custom_work": "", "agency_usage": ""
+  },
+  "m20": {
+    "annualised_hours": false, "auto_break_calc": false, "micro_scheduling": false,
+    "event_scheduling": false, "complex_shift_patterns": false,
+    "non_standard_reports": false, "hardware_ta": false, "auto_clocking": false,
+    "non_fixed_locations": false, "locations_1000_plus": false,
+    "pay_in_advance": false, "exporting_for_invoicing": false, "dynamic_overtime": false,
+    "three_plus_payroll_exports": false,
+    "hr_non_uk": false, "hr_custom_fields": false, "hr_workflows": false,
+    "multi_contract_leave": false, "leave_non_deputy": false,
+    "lacking_momentum": false, "challenging_attitude": false,
+    "dedicated_champion": false, "single_country": true, "standardised_config": false,
+    "user_band": "100-750",
+    "industry_type": "Other",
+    "strategic_customer": false, "mrr_10k_plus": false,
+    "used_deputy_before": false, "strong_pc_team": false, "in_house_it": false,
+    "integration_type": "None / Native with no issues"
+  },
+  "training_flags": {
+    "scheduling": [], "ta": [], "reporting": [], "pay": [], "integrations": []
+  },
+  "org_structure": "",
+  "summary": {
+    "filled": [], "left_blank": [], "notes": []
+  }
+}`;
+
+  let data;
+  try {
+    const resp = await fetch('https://psp-proxy.gharper-d8b.workers.dev/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 4000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: 'Transcript(s):\n\n' + combinedTx }]
+      })
+    });
+    if (!resp.ok) { const e = await resp.json(); throw new Error((e.error?.message || resp.statusText) + ' (status ' + resp.status + ')'); }
+    const r = await resp.json();
+    if (!r.content) throw new Error('Unexpected response from API: ' + JSON.stringify(r));
+    const raw = r.content.find(b => b.type === 'text')?.text || '';
+    data = JSON.parse(raw);
+    log('Extraction complete — ' + (data.company_name || 'prospect') + ' identified', 'ok');
+  } catch(e) {
+    log('Claude API error: ' + e.message, 'err');
+    btn.disabled = false; btn.textContent = '✦  Analyse & create Google Sheet';
+    return;
+  }
+
+  log('Copying master PSP template…');
+  let sheetId, sheetUrl;
+  try {
+    const title = 'PSP — ' + (data.company_name || 'New Prospect') + ' — ' + new Date().toLocaleDateString('en-GB');
+
+    // Copy the master sheet into a new spreadsheet
+    const copyResp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${MASTER_SHEET_ID}/copy`,
+      {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + gToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: title })
+      }
+    );
+    if (!copyResp.ok) { const e = await copyResp.json(); throw new Error(e.error?.message || JSON.stringify(e)); }
+    const copied = await copyResp.json();
+    sheetId = copied.id;
+    sheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
+    log('Template copied: ' + title, 'ok');
+  } catch(e) {
+    log('Copy error: ' + e.message, 'err');
+    btn.disabled = false; btn.innerHTML = '✦ &nbsp;Analyse &amp; create Google Sheet';
+    return;
+  }
+
+  log('Populating all tabs…');
+  try {
+    const ov = data.overview || {};
+    const tc = data.tech_stack || {};
+    const sc = data.scope || {};
+    const m = data.m20 || {};
+    const tf = data.training_flags || {};
+    const team = data.customer_team || [];
+
+    const v = x => x || '';
+
+    // First fetch the copied sheet's metadata to get real tab names
+    const metaResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties`, {
+      headers: { 'Authorization': 'Bearer ' + gToken }
+    });
+    const meta = await metaResp.json();
+    const tabNames = (meta.sheets || []).map(s => s.properties.title);
+    log('Tabs found: ' + tabNames.join(', '), 'ok');
+
+    // Helper: find a tab whose name contains a keyword (case-insensitive)
+    const tab = keyword => {
+      const kw = keyword.toLowerCase();
+      return tabNames.find(t => t.toLowerCase().includes(kw)) || keyword;
+    };
+
+    // Build value arrays — these write into the cells that already exist in the master template
+    // We use single-cell ranges for each value so we don't overwrite template structure
+
+    // Overview tab — write values into column C (answer column) based on known template layout
+    const ovData = [
+      { range: `'${tab('overview')}'!C3`,  values: [[v(ov.industry)]] },
+      { range: `'${tab('overview')}'!C4`,  values: [[v(ov.website)]] },
+      { range: `'${tab('overview')}'!C5`,  values: [[v(ov.brief_outline)]] },
+      { range: `'${tab('overview')}'!C6`,  values: [[v(ov.rtes_at_golive)]] },
+      { range: `'${tab('overview')}'!C7`,  values: [[v(ov.rte_12months)]] },
+      { range: `'${tab('overview')}'!C8`,  values: [[v(ov.regions)]] },
+      { range: `'${tab('overview')}'!C9`,  values: [[v(ov.physical_sites)]] },
+      { range: `'${tab('overview')}'!C10`, values: [[v(ov.deputy_locations)]] },
+      { range: `'${tab('overview')}'!C11`, values: [[v(ov.desired_golive)]] },
+      { range: `'${tab('overview')}'!C12`, values: [[v(ov.key_drivers)]] },
+      { range: `'${tab('overview')}'!C13`, values: [[v(ov.outcomes_required)]] },
+      { range: `'${tab('overview')}'!C14`, values: [[v(ov.account_exec)]] },
+      { range: `'${tab('overview')}'!C15`, values: [[v(ov.competition)]] },
+      { range: `'${tab('overview')}'!C16`, values: [[v(ov.source_of_lead)]] },
+      { range: `'${tab('overview')}'!C17`, values: [[v(ov.psp_status)]] },
+    ];
+
+    // Customer Team — write rows of people starting at row 3
+    const teamData = [];
+    (team.length ? team : []).forEach((p, i) => {
+      const row = 3 + i;
+      teamData.push({ range: `'${tab('customer')}'!A${row}:E${row}`, values: [[v(p.role_type), v(p.name), v(p.job_title), v(p.email), v(p.responsibilities)]] });
+    });
+
+    // Tech Stack
+    const tsData = [
+      { range: `'${tab('tech')}'!C2`, values: [[v(tc.current_wfm)]] },
+      { range: `'${tab('tech')}'!C3`, values: [[v(tc.hr_platform)]] },
+      { range: `'${tab('tech')}'!C4`, values: [[v(tc.payroll_platform)]] },
+      { range: `'${tab('tech')}'!C5`, values: [[v(tc.pos_platform)]] },
+      { range: `'${tab('tech')}'!C6`, values: [[v(tc.ats_platform)]] },
+      { range: `'${tab('tech')}'!C7`, values: [[v(tc.other_platforms)]] },
+      { range: `'${tab('tech')}'!C9`, values: [[v(tc.data_in)]] },
+      { range: `'${tab('tech')}'!C10`, values: [[v(tc.data_out)]] },
+    ];
+
+    // Scope Detail — write into column C
+    const scopeTab = tab('scope');
+    const scopeData = [
+      { range: `'${scopeTab}'!C3`,  values: [[v(sc.regions)]] },
+      { range: `'${scopeTab}'!C4`,  values: [[v(sc.territory)]] },
+      { range: `'${scopeTab}'!C5`,  values: [[v(sc.sites)]] },
+      { range: `'${scopeTab}'!C6`,  values: [[v(sc.departments)]] },
+      { range: `'${scopeTab}'!C7`,  values: [[v(sc.teams_roles)]] },
+      { range: `'${scopeTab}'!C8`,  values: [[v(sc.consistent_depts)]] },
+      { range: `'${scopeTab}'!C9`,  values: [[v(sc.fixed_variable)]] },
+      { range: `'${scopeTab}'!C10`, values: [[v(sc.cross_charging)]] },
+      { range: `'${scopeTab}'!C11`, values: [[v(sc.payroll_format)]] },
+      { range: `'${scopeTab}'!C12`, values: [[v(sc.pay_cycles)]] },
+      { range: `'${scopeTab}'!C13`, values: [[v(sc.payroll_managed_by)]] },
+      { range: `'${scopeTab}'!C15`, values: [[v(sc.shift_patterns)]] },
+      { range: `'${scopeTab}'!C16`, values: [[v(sc.agreed_hours)]] },
+      { range: `'${scopeTab}'!C17`, values: [[v(sc.salary_hourly_variations)]] },
+      { range: `'${scopeTab}'!C18`, values: [[v(sc.multiple_roles)]] },
+      { range: `'${scopeTab}'!C19`, values: [[v(sc.single_multiple_contracts)]] },
+      { range: `'${scopeTab}'!C20`, values: [[v(sc.employee_data_import)]] },
+      { range: `'${scopeTab}'!C22`, values: [[v(sc.clocking_preferences)]] },
+      { range: `'${scopeTab}'!C23`, values: [[v(sc.ta_rules)]] },
+      { range: `'${scopeTab}'!C24`, values: [[v(sc.rota_example_provided)]] },
+      { range: `'${scopeTab}'!C25`, values: [[v(sc.open_shifts)]] },
+      { range: `'${scopeTab}'!C27`, values: [[v(sc.leave_year)]] },
+      { range: `'${scopeTab}'!C28`, values: [[v(sc.deputy_for_leave)]] },
+      { range: `'${scopeTab}'!C29`, values: [[v(sc.leave_accrual)]] },
+      { range: `'${scopeTab}'!C30`, values: [[v(sc.toil)]] },
+      { range: `'${scopeTab}'!C32`, values: [[v(sc.salary_hourly_pay)]] },
+      { range: `'${scopeTab}'!C33`, values: [[v(sc.rates_fixed_or_per_employee)]] },
+      { range: `'${scopeTab}'!C34`, values: [[v(sc.time_ot)]] },
+      { range: `'${scopeTab}'!C35`, values: [[v(sc.area_ot)]] },
+      { range: `'${scopeTab}'!C36`, values: [[v(sc.allowances)]] },
+      { range: `'${scopeTab}'!C37`, values: [[v(sc.rates_on_deputy)]] },
+      { range: `'${scopeTab}'!C39`, values: [[v(sc.reporting_pre_built)]] },
+      { range: `'${scopeTab}'!C40`, values: [[v(sc.report_visibility)]] },
+      { range: `'${scopeTab}'!C42`, values: [[v(sc.integrations)]] },
+      { range: `'${scopeTab}'!C43`, values: [[v(sc.custom_work)]] },
+      { range: `'${scopeTab}'!C45`, values: [[v(sc.agency_usage)]] },
+    ];
+
+    // M20 — write TRUE/FALSE into the checkbox/answer column (column E based on original template)
+    const m20Tab = tab('m20');
+    const yn = b => b ? 'TRUE' : 'FALSE';
+    const m20Data = [
+      { range: `'${m20Tab}'!E5`,  values: [[yn(m.annualised_hours)]] },
+      { range: `'${m20Tab}'!E6`,  values: [[yn(m.auto_break_calc)]] },
+      { range: `'${m20Tab}'!E7`,  values: [[yn(m.micro_scheduling)]] },
+      { range: `'${m20Tab}'!E8`,  values: [[yn(m.event_scheduling)]] },
+      { range: `'${m20Tab}'!E9`,  values: [[yn(m.complex_shift_patterns)]] },
+      { range: `'${m20Tab}'!E10`, values: [[yn(m.non_standard_reports)]] },
+      { range: `'${m20Tab}'!E11`, values: [[yn(m.hardware_ta)]] },
+      { range: `'${m20Tab}'!E12`, values: [[yn(m.auto_clocking)]] },
+      { range: `'${m20Tab}'!E13`, values: [[yn(m.locations_1000_plus)]] },
+      { range: `'${m20Tab}'!E14`, values: [[yn(m.non_fixed_locations)]] },
+      { range: `'${m20Tab}'!E15`, values: [[yn(m.pay_in_advance)]] },
+      { range: `'${m20Tab}'!E16`, values: [[yn(m.exporting_for_invoicing)]] },
+      { range: `'${m20Tab}'!E17`, values: [[yn(m.dynamic_overtime)]] },
+      { range: `'${m20Tab}'!E18`, values: [[yn(m.three_plus_payroll_exports)]] },
+      { range: `'${m20Tab}'!E19`, values: [[yn(m.hr_non_uk)]] },
+      { range: `'${m20Tab}'!E20`, values: [[yn(m.hr_custom_fields)]] },
+      { range: `'${m20Tab}'!E21`, values: [[yn(m.hr_workflows)]] },
+      { range: `'${m20Tab}'!E22`, values: [[yn(m.multi_contract_leave)]] },
+      { range: `'${m20Tab}'!E23`, values: [[yn(m.leave_non_deputy)]] },
+      { range: `'${m20Tab}'!E24`, values: [[yn(m.lacking_momentum)]] },
+      { range: `'${m20Tab}'!E25`, values: [[yn(m.challenging_attitude)]] },
+      { range: `'${m20Tab}'!I5`,  values: [[yn(m.dedicated_champion)]] },
+      { range: `'${m20Tab}'!I6`,  values: [[yn(m.single_country)]] },
+      { range: `'${m20Tab}'!I7`,  values: [[yn(m.standardised_config)]] },
+      { range: `'${m20Tab}'!I8`,  values: [[yn(m.user_band === '100-750')]] },
+      { range: `'${m20Tab}'!I9`,  values: [[yn(m.user_band === '750-5000')]] },
+      { range: `'${m20Tab}'!I10`, values: [[yn(m.user_band === '5000+')]] },
+      { range: `'${m20Tab}'!I11`, values: [[yn(m.industry_type === 'Hospitality / Retail')]] },
+      { range: `'${m20Tab}'!I12`, values: [[yn(m.industry_type === 'Health/Social care')]] },
+      { range: `'${m20Tab}'!I13`, values: [[yn(m.strategic_customer)]] },
+      { range: `'${m20Tab}'!I14`, values: [[yn(m.mrr_10k_plus)]] },
+      { range: `'${m20Tab}'!I15`, values: [[yn(m.used_deputy_before)]] },
+      { range: `'${m20Tab}'!I16`, values: [[yn(m.strong_pc_team)]] },
+      { range: `'${m20Tab}'!I17`, values: [[yn(m.in_house_it)]] },
+    ];
+
+    // Training/Flags — append rows after header
+    const flagTab = tab('training') || tab('flag');
+    const tfData = [];
+    let flagRow = 3;
+    const tfSections = { Scheduling: tf.scheduling, 'T&A': tf.ta, Reporting: tf.reporting, Pay: tf.pay, 'API / Integrations': tf.integrations };
+    for (const [section, items] of Object.entries(tfSections)) {
+      if (items?.length) {
+        items.forEach(item => {
+          tfData.push({ range: `'${flagTab}'!A${flagRow}:B${flagRow}`, values: [[section, item]] });
+          flagRow++;
+        });
+      }
+    }
+
+    // Org Structure
+    const orgTab = tab('org');
+    const orgData = [
+      { range: `'${orgTab}'!A3`, values: [[v(data.org_structure) || '']] }
+    ];
+
+    const allData = [...ovData, ...teamData, ...tsData, ...scopeData, ...m20Data, ...tfData, ...orgData];
+
+    const batchResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchUpdate`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + gToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: allData })
+    });
+    if (!batchResp.ok) { const e = await batchResp.json(); throw new Error(JSON.stringify(e.error?.message || e)); }
+    log('All tabs populated', 'ok');
+
+  } catch(e) {
+    log('Population error: ' + e.message, 'err');
+  }
+
+  const rc = document.getElementById('result-card');
+  rc.style.display = '';
+  const link = document.getElementById('sheet-link');
+  link.href = sheetUrl;
+  link.textContent = '🔗 Open Google Sheet →';
+
+  const s = data.summary || {};
+  let sumTxt = '';
+  if (s.filled?.length) sumTxt += '✓ Filled: ' + s.filled.join(', ') + '\n';
+  if (s.left_blank?.length) sumTxt += '○ Left blank (not in transcript): ' + s.left_blank.join(', ') + '\n';
+  if (s.notes?.length) sumTxt += '⚠ Notes: ' + s.notes.join('; ');
+  if (sumTxt.trim()) {
+    document.getElementById('summary-box').style.display = '';
+    document.getElementById('summary-box').textContent = sumTxt.trim();
+  }
+
+  btn.disabled = false;
+  btn.textContent = '✦  Analyse & create Google Sheet';
+  checkReady();
+}
+
+</script>
+</body>
+</html>
