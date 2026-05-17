@@ -133,7 +133,6 @@
 
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 
 // ─────────────────────────────────────────────
@@ -302,7 +301,7 @@ async function runPipeline() {
 
   const systemPrompt = `You are an expert workforce management consultant at Deputy. Read the call transcript(s) provided — there may be one or several, each separated by a divider. Synthesise all of them together and extract structured data for a single Pre-Sales Pack (PSP).
 
-Return ONLY valid JSON — no markdown, no backticks, no explanation. Only populate fields explicitly stated in the transcripts. Never fabricate or infer data not clearly present.
+Return ONLY a raw JSON object. No markdown. No backticks. No code fences. No explanation. Start your response with { and end with }. Only populate fields explicitly stated in the transcripts. Never fabricate or infer data not clearly present.
 
 {
   "company_name": "",
@@ -377,7 +376,8 @@ Return ONLY valid JSON — no markdown, no backticks, no explanation. Only popul
     const r = await resp.json();
     if (!r.content) throw new Error('Unexpected response from API: ' + JSON.stringify(r));
     const raw = r.content.find(b => b.type === 'text')?.text || '';
-    data = JSON.parse(raw);
+    const clean = raw.replace(/^[\s\S]*?({[\s\S]*})[\s\S]*$/, '$1').trim();
+    data = JSON.parse(clean);
     log('Extraction complete — ' + (data.company_name || 'prospect') + ' identified', 'ok');
   } catch(e) {
     log('Claude API error: ' + e.message, 'err');
@@ -558,7 +558,7 @@ Return ONLY valid JSON — no markdown, no backticks, no explanation. Only popul
     ];
 
     // Training/Flags — append rows after header
-    const flagTab = tab('training') || tab('flag');
+    const flagTab = tab('training') || tab('flag') || tab('flags') || tabNames[5] || 'Training/Flags';
     const tfData = [];
     let flagRow = 3;
     const tfSections = { Scheduling: tf.scheduling, 'T&A': tf.ta, Reporting: tf.reporting, Pay: tf.pay, 'API / Integrations': tf.integrations };
@@ -591,20 +591,22 @@ Return ONLY valid JSON — no markdown, no backticks, no explanation. Only popul
     log('Population error: ' + e.message, 'err');
   }
 
-  const rc = document.getElementById('result-card');
-  rc.style.display = '';
-  const link = document.getElementById('sheet-link');
-  link.href = sheetUrl;
-  link.textContent = '🔗 Open Google Sheet →';
+  if (sheetUrl) {
+    const rc = document.getElementById('result-card');
+    rc.style.display = '';
+    const link = document.getElementById('sheet-link');
+    link.href = sheetUrl;
+    link.textContent = '🔗 Open Google Sheet →';
 
-  const s = data.summary || {};
-  let sumTxt = '';
-  if (s.filled?.length) sumTxt += '✓ Filled: ' + s.filled.join(', ') + '\n';
-  if (s.left_blank?.length) sumTxt += '○ Left blank (not in transcript): ' + s.left_blank.join(', ') + '\n';
-  if (s.notes?.length) sumTxt += '⚠ Notes: ' + s.notes.join('; ');
-  if (sumTxt.trim()) {
-    document.getElementById('summary-box').style.display = '';
-    document.getElementById('summary-box').textContent = sumTxt.trim();
+    const s = data.summary || {};
+    let sumTxt = '';
+    if (s.filled?.length) sumTxt += '✓ Filled: ' + s.filled.join(', ') + '\n';
+    if (s.left_blank?.length) sumTxt += '○ Left blank (not in transcript): ' + s.left_blank.join(', ') + '\n';
+    if (s.notes?.length) sumTxt += '⚠ Notes: ' + s.notes.join('; ');
+    if (sumTxt.trim()) {
+      document.getElementById('summary-box').style.display = '';
+      document.getElementById('summary-box').textContent = sumTxt.trim();
+    }
   }
 
   btn.disabled = false;
