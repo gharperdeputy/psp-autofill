@@ -103,6 +103,7 @@ var CLIENT_ID = 'PASTE_GOOGLE_CLIENT_ID_HERE';
 var MASTER_SHEET_ID = '1XFX_OpkaSe08z-cB-AgVySwkpICMcIfBg6vTWv2SGLI';
 var WORKER_URL = 'https://psp-proxy.gharper-d8b.workers.dev/';
 var gToken = null;
+ var gTokenExpiry = null;
 var txFiles = [];
 function markDone(id) {
 var el = document.getElementById(id);
@@ -125,6 +126,8 @@ var hash = popup.location.hash;
 if (hash && hash.includes('access_token')) {
 var params = new URLSearchParams(hash.substring(1));
 gToken = params.get('access_token');
+var expiresIn = parseInt(params.get('expires_in') || '3600');
+gTokenExpiry = Date.now() + (expiresIn * 1000) - 60000;
 clearInterval(timer);
 popup.close();
 setGoogleConnected();
@@ -217,6 +220,20 @@ el.scrollTop = el.scrollHeight;
 async function runPipeline() {
 var combinedTx = getCombinedTranscript();
 if (!gToken || !combinedTx) return;
+ if (gTokenExpiry && Date.now() > gTokenExpiry) {
+  gToken = null;
+  setGoogleDisconnected();
+  log('Google session expired — please reconnect', 'err');
+  btn.disabled = false; btn.textContent = '✦  Analyse & create Google Sheet'; checkReady(); return;
+}
+ function setGoogleDisconnected() {
+  var btn = document.getElementById('g-btn');
+  btn.classList.remove('connected');
+  document.getElementById('g-btn-text').textContent = 'Connect Google account';
+  var num = document.getElementById('num-g');
+  num.classList.remove('done');
+  num.textContent = '1';
+}
 var btn = document.getElementById('run-btn');
 btn.disabled = true;
 btn.textContent = 'Processing…';
