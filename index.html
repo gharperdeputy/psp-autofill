@@ -319,8 +319,7 @@ async function runPipeline() {
   log('Populating tabs…');
   try {
     var ov=data.overview||{}, tc=data.tech_stack||{}, sc=data.scope||{}, tf=data.training_flags||{}, team=data.customer_team||[];
-    var v=function(x){return x||'';};
-
+var v=function(x){ if (!x) return ''; if (Array.isArray(x)) return x.join('\n'); return String(x); };
     var ovT = tab('overview');
     var ctT = tab('customer');
     var tsT = tab('tech');
